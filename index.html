@@ -1,0 +1,353 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>今日小账</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="ledger-app" data-app="standalone-ledger-v2" aria-label="今日小账独立记账 App">
+      <header class="topbar">
+        <div>
+          <p id="todayText" class="date-line"></p>
+          <h1>今日小账</h1>
+        </div>
+        <div class="top-actions">
+          <button id="themePickerButton" class="style-link" type="button" aria-label="选择主题">风格</button>
+        </div>
+      </header>
+
+      <section class="page active" id="evaluatePage" aria-label="评账">
+        <section class="chat-hero">
+          <div>
+            <p class="date-line">今日评账群</p>
+            <h2>账后短评</h2>
+          </div>
+          <button id="jumpRecord" class="round-tool" type="button" aria-label="快速记账">＋</button>
+        </section>
+
+        <section class="evaluation-feed" id="evaluationFeed"></section>
+
+      </section>
+
+      <section class="page" id="detailsPage" aria-label="明细">
+        <section class="calendar-panel">
+          <div class="section-head">
+            <button id="calendarPrev" class="round-tool" type="button" aria-label="上个月">‹</button>
+            <div>
+              <h2 id="calendarMonthTitle">6月</h2>
+              <p id="calendarRange">6月1日 - 6月30日</p>
+            </div>
+            <button id="calendarNext" class="round-tool" type="button" aria-label="下个月">›</button>
+          </div>
+          <div class="calendar-summary">
+            <span>支 <b id="monthExpense">¥0.00</b></span>
+            <span>收 <b id="monthIncome">¥0.00</b></span>
+          </div>
+          <div class="weekday-row" aria-hidden="true">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+
+        <section class="overview-panel">
+          <div class="section-title-row">
+            <h2>概览</h2>
+            <span>›</span>
+          </div>
+          <div class="overview-grid">
+            <div><span>支出</span><b id="overviewExpense">¥0.00</b></div>
+            <div><span>收入</span><b id="overviewIncome">¥0.00</b></div>
+            <div><span>结余</span><b id="monthBalance">¥0.00</b></div>
+            <div><span>记录次数</span><b id="overviewCount">0</b></div>
+          </div>
+        </section>
+
+        <section class="toolbar compact">
+          <div>
+            <h2 id="detailTitle">明细</h2>
+            <p id="detailCount">0 笔记录</p>
+          </div>
+          <div class="period-tabs" id="detailScopeTabs" aria-label="明细范围">
+            <button type="button" data-detail-scope="day">当天</button>
+            <button type="button" data-detail-scope="week">本周</button>
+            <button type="button" data-detail-scope="month">当月</button>
+            <button type="button" data-detail-scope="year">当年</button>
+            <button type="button" data-detail-scope="all">总计</button>
+          </div>
+        </section>
+
+        <section class="view-switch-row">
+          <span>查看方式</span>
+          <div class="period-tabs view-tabs" id="detailViewTabs" aria-label="明细查看方式">
+            <button type="button" data-detail-view="list">明细</button>
+            <button type="button" data-detail-view="pie">饼图</button>
+            <button type="button" data-detail-view="bar">条形</button>
+          </div>
+        </section>
+
+        <section class="detail-chart-panel hidden" id="detailChartPanel">
+          <section class="chart-panel">
+            <div>
+              <p class="metric-label">当月支出</p>
+              <strong id="chartExpense">¥0.00</strong>
+              <p class="metric-sub">收入 <span id="chartIncome">¥0.00</span></p>
+            </div>
+            <div class="pie" id="pieChart" aria-label="圆饼图"></div>
+          </section>
+
+          <section class="list-panel">
+            <h2>分类排行</h2>
+            <div id="categoryRanking" class="ranking-list"></div>
+          </section>
+        </section>
+
+        <div class="entry-groups" id="entryGroups"></div>
+      </section>
+
+      <section class="page" id="recordPage" aria-label="记账">
+        <section class="record-panel">
+          <div class="record-head">
+            <h2>记一笔</h2>
+            <div class="kind-tabs" id="recordKindTabs" aria-label="账单类型">
+              <button type="button" data-kind="expense">支出</button>
+              <button type="button" data-kind="income">收入</button>
+              <button type="button" data-kind="transfer">转账</button>
+            </div>
+          </div>
+
+          <div class="amount-display" id="amountDisplay">¥0.00</div>
+
+          <div class="category-grid" id="categoryGrid" aria-label="分类"></div>
+
+          <label class="field-label">
+            备注
+            <input id="noteInput" class="text-field" autocomplete="off" placeholder="例如：奶茶、打车、工资" />
+          </label>
+
+          <label class="field-label">
+            角色短评
+            <select id="recordCharacterSelect" class="text-field"></select>
+          </label>
+
+          <div class="keypad" id="keypad" aria-label="金额键盘">
+            <button type="button" data-key="1">1</button>
+            <button type="button" data-key="2">2</button>
+            <button type="button" data-key="3">3</button>
+            <button type="button" data-key="4">4</button>
+            <button type="button" data-key="5">5</button>
+            <button type="button" data-key="6">6</button>
+            <button type="button" data-key="7">7</button>
+            <button type="button" data-key="8">8</button>
+            <button type="button" data-key="9">9</button>
+            <button type="button" data-key=".">.</button>
+            <button type="button" data-key="0">0</button>
+            <button type="button" data-key="back">退格</button>
+            <button class="wide-key" type="button" data-key="clear">清空金额</button>
+          </div>
+
+          <button id="saveEntry" class="save-button" type="button">保存并回到明细</button>
+          <p id="recordStatus" class="status-line"></p>
+        </section>
+      </section>
+
+      <section class="page" id="minePage" aria-label="我的">
+        <section class="profile-panel">
+          <div>
+            <p class="date-line">设置入口</p>
+            <h2>我的</h2>
+          </div>
+          <p>低频设置点进去再改，首页不天天摆出来。</p>
+          <div class="mine-menu" id="mineMenu">
+            <button type="button" data-mine-panel="user"><span>我</span><b>我的信息</b></button>
+            <button type="button" data-mine-panel="contacts"><span>录</span><b>角色通讯录</b></button>
+            <button type="button" data-mine-panel="worldbooks"><span>书</span><b>世界书</b></button>
+            <button type="button" data-mine-panel="categories"><span>类</span><b>记账分类</b></button>
+            <button type="button" data-mine-panel="api"><span>钥</span><b>API 设置</b></button>
+            <button type="button" data-mine-panel="data"><span>账</span><b>数据</b></button>
+          </div>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="user">
+          <div class="section-title-row">
+            <h2 id="profileUserName">凡人歌</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <label class="field-label">我的昵称<input id="userDisplayName" class="text-field" placeholder="凡人歌" /></label>
+          <label class="field-label">角色怎么称呼我<input id="userAddress" class="text-field" placeholder="主人 / 你 / 小凡" /></label>
+          <label class="field-label">消费风格<select id="userSpendingStyle" class="text-field">
+            <option value="随性型">随性型</option>
+            <option value="节省型">节省型</option>
+            <option value="计划型">计划型</option>
+          </select></label>
+          <label class="field-label">评价语气<select id="userCommentMode" class="text-field">
+            <option value="温柔一点">温柔一点</option>
+            <option value="吐槽一点">吐槽一点</option>
+            <option value="认真分析">认真分析</option>
+          </select></label>
+          <label class="field-label">我的人设
+            <textarea id="userPersona" class="text-field" rows="4" placeholder="例如：我的消费习惯、在意的事、角色需要记住的称呼和边界。"></textarea>
+          </label>
+          <label class="field-label">评账偏好
+            <textarea id="userPromptNote" class="text-field" rows="3" placeholder="例如：不要说教；可以轻轻吐槽；金额大时提醒我回看。"></textarea>
+          </label>
+          <button id="saveUserProfile" class="save-button small" type="button">保存我的信息</button>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="contacts">
+          <div class="section-title-row">
+            <h2>角色通讯录</h2>
+            <div class="panel-actions">
+              <label class="import-button">
+                导入角色卡 JSON/PNG
+                <input id="characterImport" type="file" accept=".json,.png,application/json,image/png" multiple />
+              </label>
+              <button class="panel-close" type="button" data-close-panel>收起</button>
+            </div>
+          </div>
+          <p id="importStatus" class="status-line"></p>
+          <div class="contact-list" id="contactList"></div>
+          <section class="contact-detail" id="contactDetail"></section>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="worldbooks">
+          <div class="section-title-row">
+            <h2>世界书</h2>
+            <div class="panel-actions">
+              <label class="import-button">
+                导入世界书 JSON
+                <input id="worldBookImport" type="file" accept=".json,application/json" multiple />
+              </label>
+              <button id="addWorldBook" class="save-button small secondary" type="button">新建世界书</button>
+              <button class="panel-close" type="button" data-close-panel>收起</button>
+            </div>
+          </div>
+          <section class="worldbook-card prompt-card">
+            <div class="worldbook-card-head">
+              <div>
+                <h3>全局评账 Prompt</h3>
+                <p>所有角色都会先遵守这里，再按各自人设说话。</p>
+              </div>
+            </div>
+            <label class="field-label">Prompt
+              <textarea id="evaluationPrompt" class="text-field" rows="7"></textarea>
+            </label>
+            <div class="worldbook-actions">
+              <button id="saveEvaluationPrompt" type="button">保存 Prompt</button>
+              <button id="resetEvaluationPrompt" type="button">恢复默认</button>
+            </div>
+          </section>
+          <p id="worldBookStatus" class="status-line"></p>
+          <div id="worldBookList" class="worldbook-list"></div>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="api">
+          <div class="section-title-row">
+            <h2>API 设置</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <label class="field-label">接口地址<input id="apiBaseUrl" class="text-field" placeholder="https://api.deepseek.com" /></label>
+          <label class="field-label">API Key<input id="apiKey" class="text-field" type="password" placeholder="保存在本机浏览器" /></label>
+          <label class="field-label">模型
+            <select id="apiModel" class="text-field">
+              <option value="">先拉取模型</option>
+            </select>
+          </label>
+          <button id="fetchModels" class="save-button small secondary" type="button">拉取模型</button>
+          <button id="saveSettings" class="save-button small" type="button">保存 API 和模型</button>
+          <button id="testApiSettings" class="save-button small secondary" type="button">测试 API</button>
+          <p id="apiStatus" class="status-line"></p>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="categories">
+          <div class="section-title-row">
+            <h2>记账分类</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <div class="category-editor-form">
+            <select id="categoryKindInput" class="text-field" aria-label="分类类型">
+              <option value="expense">支出</option>
+              <option value="income">收入</option>
+              <option value="transfer">转账</option>
+            </select>
+            <input id="categoryNameInput" class="text-field" placeholder="分类名，例如 AI" />
+            <input id="categoryIconInput" class="text-field" maxlength="3" placeholder="图标" />
+            <input id="categoryColorInput" class="text-field" type="color" value="#D9E8F6" aria-label="分类颜色" />
+            <button id="addCategory" class="save-button small" type="button">添加分类</button>
+          </div>
+          <p id="categoryStatus" class="status-line"></p>
+          <div id="categoryEditorList" class="category-editor-list"></div>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="data">
+          <div class="section-title-row">
+            <h2>数据</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <div class="insight-panel">
+            <label class="field-label">AI 小总结范围
+              <select id="insightScope" class="text-field">
+                <option value="month">本月</option>
+                <option value="week">本周</option>
+              </select>
+            </label>
+            <label class="field-label">总结预设
+              <textarea id="insightPresetText" class="text-field" rows="4" placeholder="可以写角色看账本时的风格，比如吐槽一点、温柔一点、像朋友一样。"></textarea>
+            </label>
+            <label class="import-button insight-import">
+              导入预设
+              <input id="insightPresetImport" type="file" accept=".txt,.md,.json,application/json,text/plain" />
+            </label>
+            <button id="generateInsight" class="save-button small" type="button">生成 AI 数据短评</button>
+            <div id="insightOutput" class="insight-output empty">还没有生成数据短评。</div>
+          </div>
+          <button id="clearEntries" class="danger-button" type="button">清空本地账单</button>
+        </section>
+      </section>
+
+      <nav class="bottom-nav" aria-label="底部导航">
+        <button type="button" data-page="evaluate" class="active"><span>评</span>评账</button>
+        <button type="button" data-page="details"><span>明</span>明细</button>
+        <button type="button" data-page="record" class="record-tab"><span>＋</span>记账</button>
+        <button type="button" data-page="mine"><span>我</span>我的</button>
+      </nav>
+
+      <section id="themeSheet" class="theme-sheet" aria-label="主题选择" aria-hidden="true">
+        <div class="theme-sheet-panel">
+          <div class="section-title-row">
+            <div>
+              <p class="date-line">小手机同款</p>
+              <h2>主题</h2>
+            </div>
+            <button id="themeSheetClose" class="panel-close" type="button">收起</button>
+          </div>
+          <div class="theme-grid">
+            <button type="button" class="theme-choice" data-theme-choice="pastel">
+              <span class="theme-swatch pastel"></span>
+              <b>奶油手绘</b>
+              <small>粗描边、浅色块、正常手机桌面。</small>
+            </button>
+            <button type="button" class="theme-choice" data-theme-choice="guofeng">
+              <span class="theme-swatch guofeng"></span>
+              <b>古风手札</b>
+              <small>宣纸米白、墨色文字、朱砂点印。</small>
+            </button>
+            <button type="button" class="theme-choice" data-theme-choice="status-terminal">
+              <span class="theme-swatch status-terminal"></span>
+              <b>状态终端</b>
+              <small>磨砂玻璃、柔和蓝紫、信息卡片感。</small>
+            </button>
+            <button type="button" class="theme-choice" data-theme-choice="alcheris-pixel">
+              <span class="theme-swatch alcheris-pixel"></span>
+              <b>阿尔切利斯像素</b>
+              <small>黑紫像素终端、硬边状态栏。</small>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/app/main.mjs"></script>
+  </body>
+</html>

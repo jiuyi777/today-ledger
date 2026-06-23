@@ -1,0 +1,23 @@
+:root {
+  color-scheme: light;
+  --phone-bg: #fffaf0;
+  --paper: #fffefa;
+  --panel: #f6f0e3;
+  --green: #dceecd;
+  --blue: #d9e8f6;
+  --yellow: #f4edbd;
+  --pink: #e9c4d5;
+  --red: #ffd6d6;
+  --ink: #111;
+  --muted: #7f7a6d;
+  --shadow: 4px 5px 0 rgba(17, 17, 17, 0.12);
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+
+body.dark {
+  --phone-bg: #fffaf0;
+  --paper: #fffefa;
+  --panel: #f6f0e3;
+  --ink: #111;
+  --muted: #7f7a6d;
+}

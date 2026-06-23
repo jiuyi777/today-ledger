@@ -1,0 +1,106 @@
+import { readFileSync, existsSync } from 'node:fs';
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+const componentCss = readFileSync(new URL('../src/styles/components.css', import.meta.url), 'utf8');
+const appJs = readFileSync(new URL('../src/app/main.mjs', import.meta.url), 'utf8');
+
+assert(existsSync(new URL('../src/domain/ledger-core.mjs', import.meta.url)), 'domain core should live under src/domain');
+assert(existsSync(new URL('../src/app/main.mjs', import.meta.url)), 'app bootstrap should live under src/app');
+assert(existsSync(new URL('../src/styles/tokens.css', import.meta.url)), 'style tokens should live under src/styles');
+assert(existsSync(new URL('../src/styles/layout.css', import.meta.url)), 'layout styles should live under src/styles');
+assert(existsSync(new URL('../src/styles/components.css', import.meta.url)), 'component styles should live under src/styles');
+assert(html.includes('./src/app/main.mjs'), 'index should load split app entry');
+assert(css.includes('./src/styles/tokens.css'), 'root stylesheet should import split tokens');
+assert(css.includes('./src/styles/layout.css'), 'root stylesheet should import split layout');
+assert(css.includes('./src/styles/components.css'), 'root stylesheet should import split components');
+
+assert(html.includes('id="themePickerButton"'), 'top style control should open the in-app theme picker');
+assert(!html.includes('href="./style-options.html"'), 'top style control should not navigate to the old style candidate page');
+assert(html.includes('id="themeSheet"'), 'theme picker should live inside the main app');
+for (const themeId of ['pastel', 'guofeng', 'status-terminal', 'alcheris-pixel']) {
+  assert(html.includes(`data-theme-choice="${themeId}"`), `theme picker should include ${themeId}`);
+  assert(appJs.includes(`id: '${themeId}'`), `app theme options should include ${themeId}`);
+}
+for (const removedTheme of ['gothic', 'celtic-paladin']) {
+  assert(!html.includes(`data-theme-choice="${removedTheme}"`), `theme picker should not include removed ${removedTheme}`);
+  assert(!appJs.includes(`id: '${removedTheme}'`), `app theme options should not include removed ${removedTheme}`);
+}
+for (const themeClass of ['theme-pastel', 'theme-guofeng', 'theme-status-terminal', 'theme-alcheris-pixel']) {
+  assert(componentCss.includes(themeClass), `ledger app should include ${themeClass}`);
+}
+assert(!componentCss.includes('theme-swatch.gothic'), 'removed gothic swatch CSS should not remain');
+assert(!componentCss.includes('theme-swatch.celtic-paladin'), 'removed celtic swatch CSS should not remain');
+assert(componentCss.includes('theme-guofeng') && componentCss.includes('SimSun'), 'guofeng theme should use a bookish serif font');
+assert(componentCss.includes('theme-status-terminal') && componentCss.includes('backdrop-filter'), 'status terminal theme should use frosted glass surfaces');
+assert(componentCss.includes('theme-alcheris-pixel') && componentCss.includes('image-rendering: pixelated'), 'pixel theme should use pixel styling, not only dark colors');
+assert(appJs.includes('themeOptions'), 'app should define small-phone theme options');
+assert(appJs.includes('setLedgerTheme'), 'app should save selected small-phone theme');
+
+assert(!html.includes('timeBuckets'), 'detail page should not include bookkeeping time bucket UI');
+assert(!html.includes('time-panel'), 'detail page should not include time panel');
+assert(!html.includes('chartsPage'), 'charts should be folded into detail instead of a separate page');
+assert(!html.includes('chatInput'), 'evaluation page should not expose free-form character chat');
+assert(!html.includes('sendChat'), 'evaluation page should not expose chat send action');
+assert(html.includes('data-detail-scope="all"'), 'detail page should offer all-time scope');
+assert(html.includes('data-detail-scope="day"'), 'detail page should offer selected-day scope');
+assert(html.includes('data-detail-scope="week"'), 'detail page should offer weekly scope');
+assert(html.includes('data-detail-scope="month"'), 'detail page should offer monthly scope');
+assert(html.includes('data-detail-scope="year"'), 'detail page should offer yearly scope');
+assert(!html.includes('data-detail-scope="chart"'), 'chart view should not be mixed into time scope');
+assert(html.includes('id="detailViewTabs"'), 'detail page should separate visual view controls from time scope');
+assert(html.includes('data-detail-view="list"'), 'detail page should offer list view');
+assert(html.includes('data-detail-view="pie"'), 'detail page should offer pie chart view');
+assert(html.includes('data-detail-view="bar"'), 'detail page should offer bar chart view');
+assert(html.includes('id="calendarPrev"'), 'calendar should include previous month control');
+assert(html.includes('id="calendarNext"'), 'calendar should include next month control');
+assert(componentCss.includes('.calendar-day.selected'), 'calendar should style the selected day without harsh gray');
+
+assert(html.includes('data-mine-panel="categories"'), 'mine page should expose category management');
+assert(html.includes('id="categoryEditorList"'), 'category management should list editable categories');
+assert(html.includes('id="categoryNameInput"'), 'category management should allow custom category names');
+assert(html.includes('id="categoryIconInput"'), 'category management should allow custom category icons');
+assert(html.includes('id="addCategory"'), 'category management should allow adding categories');
+assert(html.includes('id="contactDetail"'), 'contacts should include a selected contact detail panel');
+assert(html.includes('multiple'), 'character import should allow importing multiple cards like contacts');
+assert(html.includes('data-mine-panel="worldbooks"'), 'mine page should expose worldbook management');
+assert(html.includes('id="worldBookImport"'), 'worldbook management should import SillyTavern world books');
+assert(html.includes('id="evaluationPrompt"'), 'worldbook page should show the editable global evaluation prompt');
+assert(html.includes('id="saveEvaluationPrompt"'), 'worldbook page should save the global evaluation prompt');
+assert(html.includes('id="resetEvaluationPrompt"'), 'worldbook page should restore the default evaluation prompt');
+assert(html.includes('id="addWorldBook"'), 'worldbook management should allow creating a world book manually');
+assert(html.includes('id="worldBookList"'), 'worldbook management should list imported world books');
+assert(html.includes('id="insightPresetImport"'), 'data page should allow importing AI summary presets');
+assert(html.includes('id="generateInsight"'), 'data page should allow generating AI spending summaries');
+assert(html.includes('id="insightOutput"'), 'data page should display AI spending summaries');
+assert(html.includes('id="userPersona"'), 'user profile should include editable persona text');
+assert(html.includes('id="userPromptNote"'), 'user profile should include editable prompt preferences');
+
+assert(componentCss.includes('character-editor'), 'contacts should style a character edit form');
+assert(componentCss.includes('worldbook-entry-editor'), 'worldbook entries should have editable styling');
+assert(appJs.includes('confirm('), 'entry delete should ask for confirmation before removing');
+assert(appJs.includes('data-delete-worldbook-entry'), 'standalone worldbook entries should have delete handlers');
+assert(appJs.includes('data-delete-character-worldbook-entry'), 'embedded character worldbook entries should have delete handlers');
+assert(appJs.includes('categoryIconSvgs'), 'category icons should use a unified minimal icon set');
+assert(appJs.includes('playKeypadTap'), 'keypad should play a small tap sound');
+assert(appJs.includes('key-pressed'), 'keypad buttons should expose pressed visual feedback');
+assert(componentCss.includes('.keypad button.key-pressed'), 'keypad pressed state should be styled');
+assert(appJs.includes('flashTapTarget'), 'ordinary clickable controls should have tap feedback');
+assert(appJs.includes('tap-pressed'), 'ordinary click feedback should use a visible pressed class');
+assert(componentCss.includes('.tap-pressed'), 'ordinary pressed state should be styled with visible color feedback');
+
+assert(html.includes('id="fetchModels"'), 'api settings should include a fetch models action');
+assert(html.includes('<select id="apiModel"'), 'api model should be selected from fetched models instead of typed manually');
+assert(appJs.includes('fetchModels'), 'app should implement model fetching');
+assert(appJs.includes('buildModelsEndpoint'), 'app should build a models endpoint from API base URL');
+assert(appJs.includes('/models'), 'model fetching should call an OpenAI-compatible models endpoint');
+assert(appJs.includes("renderAvatar({ avatar: message.avatar, characterName: message.characterName }, 'bubble-avatar')"), 'evaluation bubbles should render image avatars instead of data URLs as text');
+assert(componentCss.includes('.bubble-avatar') && componentCss.includes('overflow: hidden;'), 'bubble avatars should clip imported image avatars');
+assert(appJs.includes('saveEvaluationPrompt'), 'app should save editable evaluation prompt text');
+assert(appJs.includes('addWorldBookEntry'), 'app should allow manually adding worldbook entries');
+
+console.log('standalone ledger architecture ok');

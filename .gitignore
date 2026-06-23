@@ -1,0 +1,10 @@
+node_modules/
+www/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/build/intermediates/
+android/app/build/generated/
+android/app/build/tmp/
+*.log
+test-artifacts/
