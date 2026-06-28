@@ -484,6 +484,29 @@ h3 {
   font-weight: 950;
 }
 
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.detail-stats span {
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  background: var(--paper);
+  padding: 9px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.detail-stats b {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+}
+
 .period-tabs,
 .kind-tabs {
   display: flex;
@@ -703,6 +726,18 @@ h3 {
   font-weight: 1000;
 }
 
+.budget-hint {
+  margin: -4px 0 14px;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: var(--green);
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
 .category-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -761,6 +796,25 @@ h3 {
   padding: 13px;
   outline: none;
   font-weight: 850;
+}
+
+.record-extra-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-fields {
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.transfer-fields.active {
+  display: grid;
+}
+
+.transfer-fields .field-label:last-child {
+  grid-column: 1 / -1;
 }
 
 textarea.text-field {
@@ -1148,8 +1202,20 @@ textarea.text-field {
 
 .category-editor-form {
   display: grid;
-  grid-template-columns: 1fr 1fr 58px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.pending-editor-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pending-editor-form .save-button,
+.pending-editor-form input:first-child,
+.pending-editor-form input:last-of-type {
+  grid-column: 1 / -1;
 }
 
 .category-editor-form .save-button {
@@ -1176,6 +1242,10 @@ textarea.text-field {
   border-radius: 22px;
   background: var(--paper);
   padding: 10px;
+}
+
+.category-editor-row > div:first-child:not(.entry-icon) {
+  grid-column: 1 / 3;
 }
 
 .category-editor-row p {

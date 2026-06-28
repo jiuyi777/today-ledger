@@ -18,7 +18,7 @@
         </div>
       </header>
 
-      <section class="page active" id="evaluatePage" aria-label="评账">
+      <section class="page" id="evaluatePage" aria-label="评账">
         <section class="chat-hero">
           <div>
             <p class="date-line">今日评账群</p>
@@ -61,6 +61,8 @@
             <div><span>收入</span><b id="overviewIncome">¥0.00</b></div>
             <div><span>结余</span><b id="monthBalance">¥0.00</b></div>
             <div><span>记录次数</span><b id="overviewCount">0</b></div>
+            <div><span>预算剩余</span><b id="budgetRemaining">未设置</b></div>
+            <div><span>待结清</span><b id="pendingSummary">0 项</b></div>
           </div>
         </section>
 
@@ -87,6 +89,8 @@
           </div>
         </section>
 
+        <section id="detailStats" class="detail-stats" aria-label="真实统计摘要"></section>
+
         <section class="detail-chart-panel hidden" id="detailChartPanel">
           <section class="chart-panel">
             <div>
@@ -106,7 +110,7 @@
         <div class="entry-groups" id="entryGroups"></div>
       </section>
 
-      <section class="page" id="recordPage" aria-label="记账">
+      <section class="page active" id="recordPage" aria-label="记账">
         <section class="record-panel">
           <div class="record-head">
             <h2>记一笔</h2>
@@ -118,6 +122,7 @@
           </div>
 
           <div class="amount-display" id="amountDisplay">¥0.00</div>
+          <div id="budgetHint" class="budget-hint">设置预算后，这里会显示本月剩余额度。</div>
 
           <div class="category-grid" id="categoryGrid" aria-label="分类"></div>
 
@@ -125,6 +130,22 @@
             备注
             <input id="noteInput" class="text-field" autocomplete="off" placeholder="例如：奶茶、打车、工资" />
           </label>
+
+          <section class="record-extra-fields">
+            <label class="field-label" id="accountSelectWrap">
+              支付 / 入账账户
+              <select id="accountSelect" class="text-field"></select>
+            </label>
+            <div id="transferFields" class="transfer-fields">
+              <label class="field-label">转出账户<select id="fromAccountSelect" class="text-field"></select></label>
+              <label class="field-label">转入账户<select id="toAccountSelect" class="text-field"></select></label>
+              <label class="field-label">手续费<input id="feeAmountInput" class="text-field" inputmode="decimal" placeholder="0.00" /></label>
+            </div>
+            <label class="field-label">
+              关联待结清
+              <select id="pendingItemSelect" class="text-field"></select>
+            </label>
+          </section>
 
           <label class="field-label">
             角色短评
@@ -164,6 +185,9 @@
             <button type="button" data-mine-panel="contacts"><span>录</span><b>角色通讯录</b></button>
             <button type="button" data-mine-panel="worldbooks"><span>书</span><b>世界书</b></button>
             <button type="button" data-mine-panel="categories"><span>类</span><b>记账分类</b></button>
+            <button type="button" data-mine-panel="budget"><span>预</span><b>预算目标</b></button>
+            <button type="button" data-mine-panel="accounts"><span>户</span><b>账户</b></button>
+            <button type="button" data-mine-panel="pending"><span>补</span><b>待结清</b></button>
             <button type="button" data-mine-panel="api"><span>钥</span><b>API 设置</b></button>
             <button type="button" data-mine-panel="data"><span>账</span><b>数据</b></button>
           </div>
@@ -274,10 +298,67 @@
             <input id="categoryNameInput" class="text-field" placeholder="分类名，例如 AI" />
             <input id="categoryIconInput" class="text-field" maxlength="3" placeholder="图标" />
             <input id="categoryColorInput" class="text-field" type="color" value="#D9E8F6" aria-label="分类颜色" />
+            <input id="categoryKeywordsInput" class="text-field" placeholder="关键词，例如 API, token" />
             <button id="addCategory" class="save-button small" type="button">添加分类</button>
           </div>
           <p id="categoryStatus" class="status-line"></p>
           <div id="categoryEditorList" class="category-editor-list"></div>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="budget">
+          <div class="section-title-row">
+            <h2>预算目标</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <label class="field-label">本月总预算<input id="budgetMonthlyLimit" class="text-field" inputmode="decimal" placeholder="例如 2000" /></label>
+          <div class="category-editor-form">
+            <select id="budgetCategoryInput" class="text-field" aria-label="预算分类"></select>
+            <input id="budgetCategoryLimitInput" class="text-field" inputmode="decimal" placeholder="分类预算，例如 300" />
+            <button id="addCategoryBudget" class="save-button small" type="button">添加分类预算</button>
+          </div>
+          <button id="saveBudget" class="save-button small" type="button">保存预算</button>
+          <p id="budgetStatus" class="status-line"></p>
+          <div id="budgetList" class="category-editor-list"></div>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="accounts">
+          <div class="section-title-row">
+            <h2>账户</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <div class="category-editor-form">
+            <input id="accountNameInput" class="text-field" placeholder="账户名，例如 支付宝" />
+            <input id="accountBalanceInput" class="text-field" inputmode="decimal" placeholder="余额，例如 100" />
+            <button id="addAccount" class="save-button small" type="button">添加账户</button>
+          </div>
+          <p id="accountStatus" class="status-line"></p>
+          <div id="accountList" class="category-editor-list"></div>
+        </section>
+
+        <section class="settings-panel mine-panel" data-mine-panel-view="pending">
+          <div class="section-title-row">
+            <h2>待结清</h2>
+            <button class="panel-close" type="button" data-close-panel>收起</button>
+          </div>
+          <div class="pending-editor-form">
+            <input id="pendingTitleInput" class="text-field" placeholder="事项，例如 医院打光 / 剧本杀年卡" />
+            <select id="pendingTypeInput" class="text-field">
+              <option value="prepaid">预付</option>
+              <option value="reimburse">报销</option>
+              <option value="medical">医保/自费</option>
+              <option value="count-card">次数卡</option>
+              <option value="other">其他</option>
+            </select>
+            <input id="pendingTotalAmountInput" class="text-field" inputmode="decimal" placeholder="总金额" />
+            <input id="pendingUsedAmountInput" class="text-field" inputmode="decimal" placeholder="已用/已报金额" />
+            <input id="pendingReimbursedAmountInput" class="text-field" inputmode="decimal" placeholder="医保/报销金额" />
+            <input id="pendingTotalCountInput" class="text-field" inputmode="numeric" placeholder="总次数" />
+            <input id="pendingUsedCountInput" class="text-field" inputmode="numeric" placeholder="已用次数" />
+            <input id="pendingNoteInput" class="text-field" placeholder="备注" />
+            <button id="addPendingItem" class="save-button small" type="button">添加待结清</button>
+          </div>
+          <p id="pendingStatus" class="status-line"></p>
+          <div id="pendingItemList" class="category-editor-list"></div>
         </section>
 
         <section class="settings-panel mine-panel" data-mine-panel-view="data">
@@ -307,9 +388,9 @@
       </section>
 
       <nav class="bottom-nav" aria-label="底部导航">
-        <button type="button" data-page="evaluate" class="active"><span>评</span>评账</button>
+        <button type="button" data-page="evaluate"><span>评</span>评账</button>
         <button type="button" data-page="details"><span>明</span>明细</button>
-        <button type="button" data-page="record" class="record-tab"><span>＋</span>记账</button>
+        <button type="button" data-page="record" class="record-tab active"><span>＋</span>记账</button>
         <button type="button" data-page="mine"><span>我</span>我的</button>
       </nav>
 

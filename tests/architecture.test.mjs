@@ -10,7 +10,13 @@ const componentCss = readFileSync(new URL('../src/styles/components.css', import
 const appJs = readFileSync(new URL('../src/app/main.mjs', import.meta.url), 'utf8');
 
 assert(existsSync(new URL('../src/domain/ledger-core.mjs', import.meta.url)), 'domain core should live under src/domain');
+for (const domainFile of ['budget-core.mjs', 'account-core.mjs', 'pending-core.mjs', 'category-rules.mjs', 'duplicate-core.mjs']) {
+  assert(existsSync(new URL(`../src/domain/${domainFile}`, import.meta.url)), `${domainFile} should live under src/domain`);
+}
 assert(existsSync(new URL('../src/app/main.mjs', import.meta.url)), 'app bootstrap should live under src/app');
+for (const appFile of ['render-record.mjs', 'render-details.mjs', 'render-budget.mjs', 'render-accounts.mjs', 'render-pending.mjs', 'render-ai.mjs']) {
+  assert(existsSync(new URL(`../src/app/${appFile}`, import.meta.url)), `${appFile} should live under src/app`);
+}
 assert(existsSync(new URL('../src/styles/tokens.css', import.meta.url)), 'style tokens should live under src/styles');
 assert(existsSync(new URL('../src/styles/layout.css', import.meta.url)), 'layout styles should live under src/styles');
 assert(existsSync(new URL('../src/styles/components.css', import.meta.url)), 'component styles should live under src/styles');
@@ -40,6 +46,12 @@ assert(componentCss.includes('theme-status-terminal') && componentCss.includes('
 assert(componentCss.includes('theme-alcheris-pixel') && componentCss.includes('image-rendering: pixelated'), 'pixel theme should use pixel styling, not only dark colors');
 assert(appJs.includes('themeOptions'), 'app should define small-phone theme options');
 assert(appJs.includes('setLedgerTheme'), 'app should save selected small-phone theme');
+assert(appJs.includes("activePage = state.settings.defaultPage || 'record'"), 'app should default to the configured record page');
+assert(appJs.includes('buildBudgetSummary'), 'app should use budget summary data');
+assert(appJs.includes('findDuplicateCandidates'), 'app should detect possible duplicate entries');
+assert(appJs.includes('inferCategoryByKeywords'), 'app should infer categories from note keywords');
+assert(appJs.includes('buildPendingSummary'), 'app should summarize pending items');
+assert(appJs.includes('applyEntryToAccounts'), 'app should update lightweight accounts');
 
 assert(!html.includes('timeBuckets'), 'detail page should not include bookkeeping time bucket UI');
 assert(!html.includes('time-panel'), 'detail page should not include time panel');
@@ -61,6 +73,15 @@ assert(html.includes('id="calendarNext"'), 'calendar should include next month c
 assert(componentCss.includes('.calendar-day.selected'), 'calendar should style the selected day without harsh gray');
 
 assert(html.includes('data-mine-panel="categories"'), 'mine page should expose category management');
+assert(html.includes('data-mine-panel="budget"'), 'mine page should expose budget management');
+assert(html.includes('data-mine-panel="accounts"'), 'mine page should expose account management');
+assert(html.includes('data-mine-panel="pending"'), 'mine page should expose pending item management');
+assert(html.includes('id="budgetMonthlyLimit"'), 'budget panel should edit monthly limit');
+assert(html.includes('id="accountList"'), 'account panel should list accounts');
+assert(html.includes('id="pendingItemList"'), 'pending panel should list pending items');
+assert(html.includes('id="budgetHint"'), 'record page should show budget hints');
+assert(html.includes('id="accountSelect"'), 'record page should select payment account');
+assert(html.includes('id="transferFields"'), 'record page should expose transfer account fields');
 assert(html.includes('id="categoryEditorList"'), 'category management should list editable categories');
 assert(html.includes('id="categoryNameInput"'), 'category management should allow custom category names');
 assert(html.includes('id="categoryIconInput"'), 'category management should allow custom category icons');

@@ -18,6 +18,11 @@
   removeBuiltInEvaluations,
   selectWorldBookEntries,
 } from '../domain/ledger-core.mjs';
+import { applyEntryToAccounts, buildFeeEntryForTransfer, createDefaultAccounts } from '../domain/account-core.mjs';
+import { buildBudgetSummary, getCategoryBudgetStatus } from '../domain/budget-core.mjs';
+import { inferCategoryByKeywords, normalizeKeywordList } from '../domain/category-rules.mjs';
+import { findDuplicateCandidates } from '../domain/duplicate-core.mjs';
+import { buildPendingSummary, createPendingItem, summarizePendingItem } from '../domain/pending-core.mjs';
 
 const storageKey = 'standalone-ledger-v2';
 const defaultState = createDefaultLedgerState();
@@ -52,7 +57,7 @@ const viewLabels = {
 };
 
 let state = loadState();
-let activePage = 'evaluate';
+let activePage = state.settings.defaultPage || 'record';
 let activeMinePanel = '';
 let activeContactId = '';
 let detailScope = 'day';
@@ -88,11 +93,18 @@ function loadState() {
       chatMessages: savedChats,
       entries: savedEntries,
       categoryOverrides: Array.isArray(saved.categoryOverrides) ? saved.categoryOverrides : [],
+      budgets: {
+        ...defaultState.budgets,
+        ...(saved.budgets || {}),
+        categoryLimits: Array.isArray(saved.budgets?.categoryLimits) ? saved.budgets.categoryLimits : [],
+      },
+      accounts: Array.isArray(saved.accounts) && saved.accounts.length ? saved.accounts : createDefaultAccounts(),
+      pendingItems: Array.isArray(saved.pendingItems) ? saved.pendingItems : [],
       insightPreset: String(saved.insightPreset || defaultState.insightPreset || ''),
       lastInsight: saved.lastInsight || null,
     };
   } catch {
-    return createDefaultLedgerState();
+    return { ...createDefaultLedgerState(), accounts: createDefaultAccounts() };
   }
 }
 
@@ -128,12 +140,20 @@ function activeCategories() {
 
 function createDraft(kind, catalog = categories) {
   const firstCategory = catalog.find((category) => category.kind === kind);
+  const accounts = state?.accounts?.length ? state.accounts : createDefaultAccounts();
   return {
     kind,
     category: firstCategory?.name || '',
     amountBuffer: '',
     note: '',
     characterName: '',
+    accountId: accounts[0]?.id || '',
+    fromAccountId: accounts.find((account) => account.id === 'bank')?.id || accounts[0]?.id || '',
+    toAccountId: accounts.find((account) => account.id === 'wechat')?.id || accounts[1]?.id || '',
+    feeAmount: '',
+    pendingItemId: '',
+    autoCategorySource: '',
+    categoryManuallySelected: false,
   };
 }
 
@@ -301,12 +321,16 @@ function renderChatMessage(message) {
 
 function renderOverview() {
   const summary = buildSummary(state.entries, calendarCursor);
+  const budget = buildBudgetSummary(state.entries, state.budgets, calendarCursor);
+  const pending = buildPendingSummary(state.pendingItems);
   $('#monthExpense').textContent = formatMoney(summary.monthExpense);
   $('#monthIncome').textContent = formatMoney(summary.monthIncome);
   $('#monthBalance').textContent = formatMoney(summary.balance);
   $('#overviewExpense').textContent = formatMoney(summary.monthExpense);
   $('#overviewIncome').textContent = formatMoney(summary.monthIncome);
   $('#overviewCount').textContent = String(summary.month.length);
+  $('#budgetRemaining').textContent = budget.remaining === null ? '未设置' : formatMoney(budget.remaining);
+  $('#pendingSummary').textContent = `${pending.openCount} 项`;
   renderCalendar(summary, calendarCursor);
 }
 
@@ -314,8 +338,17 @@ function renderDetails() {
   const showingChart = detailView !== 'list';
   const referenceTime = detailReferenceTime();
   const summary = buildScopedSummary(state.entries, detailScope, referenceTime);
+  const budget = buildBudgetSummary(state.entries, state.budgets, referenceTime);
+  const pending = buildPendingSummary(state.pendingItems);
   $('#detailCount').textContent = `${scopeLabels[detailScope]} · ${viewLabels[detailView]} · ${summary.entries.length} 笔记录`;
   $('#detailTitle').textContent = '明细';
+  $('#detailStats').innerHTML = [
+    `<span>支出 <b>${formatMoney(summary.expense)}</b></span>`,
+    `<span>收入 <b>${formatMoney(summary.income)}</b></span>`,
+    `<span>结余 <b>${formatMoney(summary.income - summary.expense)}</b></span>`,
+    `<span>预算 <b>${budget.remaining === null ? '未设置' : formatMoney(budget.remaining)}</b></span>`,
+    `<span>待结清 <b>${pending.openCount} 项</b></span>`,
+  ].join('');
   $('#entryGroups').classList.toggle('hidden', showingChart);
   $('#detailChartPanel').classList.toggle('hidden', !showingChart);
   $('#detailChartPanel').classList.toggle('bar-view', detailView === 'bar');
@@ -433,6 +466,7 @@ function renderRanking(rows) {
 
 function renderRecord() {
   const catalog = activeCategories();
+  const accounts = state.accounts.length ? state.accounts : createDefaultAccounts();
   if (!catalog.some((category) => category.kind === recordDraft.kind && category.name === recordDraft.category)) {
     recordDraft.category = catalog.find((category) => category.kind === recordDraft.kind)?.name || '';
   }
@@ -441,6 +475,14 @@ function renderRecord() {
   });
   const amount = Number(recordDraft.amountBuffer || 0);
   $('#amountDisplay').textContent = formatMoney(amount);
+  const budget = buildBudgetSummary(state.entries, state.budgets, Date.now());
+  const categoryBudget = getCategoryBudgetStatus(state.entries, state.budgets, recordDraft.category, Date.now());
+  $('#budgetHint').textContent = recordDraft.kind === 'expense'
+    ? [
+      budget.remaining === null ? '未设置本月总预算。' : `本月已花 ${formatMoney(budget.monthlyExpense)}，剩余 ${formatMoney(budget.remaining)}。`,
+      categoryBudget.remaining === null ? '' : `${recordDraft.category} 剩余 ${formatMoney(categoryBudget.remaining)}。`,
+    ].filter(Boolean).join(' ')
+    : '预算只统计支出；收入和转账不会算作消费。';
   $('#categoryGrid').innerHTML = catalog
     .filter((category) => category.kind === recordDraft.kind)
     .map((category) => `
@@ -450,6 +492,22 @@ function renderRecord() {
       </button>
     `).join('');
   if ($('#noteInput').value !== recordDraft.note) $('#noteInput').value = recordDraft.note;
+  const accountOptions = accounts.map((account) => `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)} · ${formatMoney(account.balance || 0)}</option>`).join('');
+  $('#accountSelect').innerHTML = accountOptions;
+  $('#fromAccountSelect').innerHTML = accountOptions;
+  $('#toAccountSelect').innerHTML = accountOptions;
+  $('#accountSelect').value = recordDraft.accountId || accounts[0]?.id || '';
+  $('#fromAccountSelect').value = recordDraft.fromAccountId || accounts[0]?.id || '';
+  $('#toAccountSelect').value = recordDraft.toAccountId || accounts[1]?.id || accounts[0]?.id || '';
+  $('#feeAmountInput').value = recordDraft.feeAmount || '';
+  $('#accountSelectWrap').classList.toggle('hidden', recordDraft.kind === 'transfer');
+  $('#transferFields').classList.toggle('active', recordDraft.kind === 'transfer');
+  const openPendingItems = buildPendingSummary(state.pendingItems).items.filter((item) => item.status !== '已结清');
+  $('#pendingItemSelect').innerHTML = [
+    '<option value="">不关联待结清</option>',
+    ...openPendingItems.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title)} · 剩 ${formatMoney(item.remainingAmount)}</option>`),
+  ].join('');
+  $('#pendingItemSelect').value = recordDraft.pendingItemId || '';
   renderCharacterSelect();
 }
 
@@ -485,6 +543,9 @@ function renderSettings() {
   renderContacts();
   renderWorldBooks();
   renderCategoryEditor();
+  renderBudgetEditor();
+  renderAccountEditor();
+  renderPendingEditor();
 }
 
 function renderApiModelOptions() {
@@ -647,6 +708,150 @@ function renderCategoryEditor() {
     : '<p class="empty">还没有可管理的分类。</p>';
 }
 
+function renderBudgetEditor() {
+  $('#budgetMonthlyLimit').value = state.budgets?.monthlyLimit || '';
+  const expenseCategories = activeCategories().filter((category) => category.kind === 'expense');
+  $('#budgetCategoryInput').innerHTML = expenseCategories
+    .map((category) => `<option value="${escapeHtml(category.name)}">${escapeHtml(category.name)}</option>`)
+    .join('');
+  const budget = buildBudgetSummary(state.entries, state.budgets, Date.now());
+  $('#budgetList').innerHTML = budget.categoryRows.length
+    ? budget.categoryRows.map((row) => `
+      <article class="category-editor-row">
+        <div>
+          <h3>${escapeHtml(row.category)}</h3>
+          <p>预算 ${formatMoney(row.limit)} · 已花 ${formatMoney(row.spent)} · 剩 ${formatMoney(row.remaining)}</p>
+        </div>
+        <button type="button" data-delete-category-budget="${escapeHtml(row.category)}">删除</button>
+      </article>
+    `).join('')
+    : '<p class="empty">还没有分类预算。可以先设置本月总预算。</p>';
+}
+
+function saveBudget() {
+  state.budgets = {
+    ...(state.budgets || {}),
+    monthlyLimit: Number($('#budgetMonthlyLimit').value || 0),
+    categoryLimits: Array.isArray(state.budgets?.categoryLimits) ? state.budgets.categoryLimits : [],
+  };
+  $('#budgetStatus').textContent = '预算已保存。';
+  saveState();
+  render();
+}
+
+function addCategoryBudget() {
+  const category = $('#budgetCategoryInput').value;
+  const limit = Number($('#budgetCategoryLimitInput').value || 0);
+  if (!category || !limit) {
+    $('#budgetStatus').textContent = '先选择分类并填写预算金额。';
+    return;
+  }
+  const rows = (state.budgets?.categoryLimits || []).filter((item) => item.category !== category);
+  state.budgets = { ...(state.budgets || {}), categoryLimits: [...rows, { category, limit }] };
+  $('#budgetCategoryLimitInput').value = '';
+  $('#budgetStatus').textContent = `已添加 ${category} 预算。`;
+  saveState();
+  render();
+}
+
+function deleteCategoryBudget(category) {
+  state.budgets = {
+    ...(state.budgets || {}),
+    categoryLimits: (state.budgets?.categoryLimits || []).filter((item) => item.category !== category),
+  };
+  saveState();
+  render();
+}
+
+function renderAccountEditor() {
+  if (!state.accounts.length) state.accounts = createDefaultAccounts();
+  $('#accountList').innerHTML = state.accounts.map((account) => `
+    <article class="category-editor-row">
+      <div>
+        <h3>${escapeHtml(account.name)}</h3>
+        <p>余额 ${formatMoney(account.balance || 0)}</p>
+      </div>
+      <button type="button" data-delete-account="${escapeHtml(account.id)}">删除</button>
+    </article>
+  `).join('');
+}
+
+function addAccount() {
+  const name = $('#accountNameInput').value.trim();
+  const balance = Number($('#accountBalanceInput').value || 0);
+  if (!name) {
+    $('#accountStatus').textContent = '先写账户名。';
+    return;
+  }
+  state.accounts = [
+    ...state.accounts,
+    { id: `account-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, balance },
+  ];
+  $('#accountNameInput').value = '';
+  $('#accountBalanceInput').value = '';
+  $('#accountStatus').textContent = `已添加 ${name}`;
+  saveState();
+  render();
+}
+
+function deleteAccount(accountId) {
+  if (state.accounts.length <= 1) {
+    $('#accountStatus').textContent = '至少保留一个账户。';
+    return;
+  }
+  state.accounts = state.accounts.filter((account) => account.id !== accountId);
+  saveState();
+  render();
+}
+
+function renderPendingEditor() {
+  const summary = buildPendingSummary(state.pendingItems);
+  $('#pendingItemList').innerHTML = summary.items.length
+    ? summary.items.map((item) => `
+      <article class="category-editor-row">
+        <div>
+          <h3>${escapeHtml(item.title)}</h3>
+          <p>${escapeHtml(item.type)} · 剩 ${formatMoney(item.remainingAmount)} · 次数 ${item.remainingCount} · ${item.status}</p>
+          ${item.note ? `<p>${escapeHtml(item.note)}</p>` : ''}
+        </div>
+        <button type="button" data-delete-pending="${escapeHtml(item.id)}">删除</button>
+      </article>
+    `).join('')
+    : '<p class="empty">还没有待结清事项。</p>';
+}
+
+function addPendingItem() {
+  const title = $('#pendingTitleInput').value.trim();
+  if (!title) {
+    $('#pendingStatus').textContent = '先写事项标题。';
+    return;
+  }
+  state.pendingItems = [
+    createPendingItem({
+      title,
+      type: $('#pendingTypeInput').value,
+      totalAmount: $('#pendingTotalAmountInput').value,
+      usedAmount: $('#pendingUsedAmountInput').value,
+      reimbursedAmount: $('#pendingReimbursedAmountInput').value,
+      totalCount: $('#pendingTotalCountInput').value,
+      usedCount: $('#pendingUsedCountInput').value,
+      note: $('#pendingNoteInput').value,
+    }),
+    ...state.pendingItems,
+  ];
+  ['pendingTitleInput', 'pendingTotalAmountInput', 'pendingUsedAmountInput', 'pendingReimbursedAmountInput', 'pendingTotalCountInput', 'pendingUsedCountInput', 'pendingNoteInput']
+    .forEach((id) => { $(`#${id}`).value = ''; });
+  $('#pendingStatus').textContent = '已添加待结清事项。';
+  saveState();
+  render();
+}
+
+function deletePendingItem(itemId) {
+  state.pendingItems = state.pendingItems.filter((item) => item.id !== itemId);
+  saveState();
+  render();
+}
+
 function upsertCategoryOverride(nextOverride) {
   state.categoryOverrides = [
     ...state.categoryOverrides.filter((override) => override.id !== nextOverride.id),
@@ -659,6 +864,7 @@ function addCategory() {
   const icon = $('#categoryIconInput').value.trim() || name.slice(0, 1) || '+';
   const kind = $('#categoryKindInput').value;
   const color = $('#categoryColorInput').value || '#D9E8F6';
+  const keywords = normalizeKeywordList($('#categoryKeywordsInput').value || name);
   if (!name) {
     $('#categoryStatus').textContent = '先写一个分类名。';
     return;
@@ -669,12 +875,13 @@ function addCategory() {
     kind,
     icon,
     color,
-    keywords: [name],
+    keywords,
     enabled: true,
     custom: true,
   });
   $('#categoryNameInput').value = '';
   $('#categoryIconInput').value = '';
+  $('#categoryKeywordsInput').value = '';
   $('#categoryStatus').textContent = `已添加 ${name}`;
   saveState();
   render();
@@ -765,7 +972,19 @@ function saveEntry() {
     amount,
     note: recordDraft.note.trim(),
     createdAt: Date.now(),
+    accountId: recordDraft.kind === 'transfer' ? '' : recordDraft.accountId,
+    fromAccountId: recordDraft.kind === 'transfer' ? recordDraft.fromAccountId : '',
+    toAccountId: recordDraft.kind === 'transfer' ? recordDraft.toAccountId : '',
+    feeAmount: recordDraft.kind === 'transfer' ? Number(recordDraft.feeAmount || 0) : 0,
+    pendingItemId: recordDraft.pendingItemId || '',
+    autoCategorySource: recordDraft.autoCategorySource || '',
   };
+  const duplicateCandidates = findDuplicateCandidates(entry, state.entries);
+  if (duplicateCandidates.length && !confirm('这笔账和今天已有记录很像，可能重复。确定还要保存吗？')) {
+    $('#recordStatus').textContent = '已取消保存，避免重复记账。';
+    return;
+  }
+  const feeEntry = entry.kind === 'transfer' ? buildFeeEntryForTransfer(entry) : null;
   const evaluators = recordDraft.characterName
     ? state.characters.filter((character) => character.name === recordDraft.characterName)
     : enabledCharacters();
@@ -774,7 +993,8 @@ function saveEntry() {
   entry.evaluationStatus = evaluators.length
     ? (canEvaluate ? 'pending' : 'api-missing')
     : 'no-character';
-  state.entries = [entry, ...state.entries];
+  state.entries = [entry, ...(feeEntry ? [feeEntry] : []), ...state.entries];
+  state.accounts = applyEntryToAccounts(state.accounts.length ? state.accounts : createDefaultAccounts(), entry);
   saveState();
   recordDraft = createDraft('expense', activeCategories());
   $('#recordStatus').textContent = '';
@@ -834,15 +1054,20 @@ async function requestCharacterEvaluation(entry, character) {
     name: `${character.name} / ${book.name}`,
   }));
   const worldInfo = selectWorldBookEntries([...state.worldBooks, ...characterWorldBooks], worldInfoContext);
+  const budget = buildBudgetSummary(state.entries, state.budgets, entry.createdAt);
+  const categoryBudget = getCategoryBudgetStatus(state.entries, state.budgets, entry.category, entry.createdAt);
   const prompt = [
     '事实边界：角色设定、用户人设和世界书只用于语气与称呼，不得用来补全账单事实。',
     '短评只能引用本次账单里明确出现的信息；没有写出的地点、目的、人物、路线、时间安排都不能说。',
+    '输出一整句短评即可，不要编号，不要分析报告。',
     character.description ? `角色简介：${character.description}` : '',
     character.personality ? `角色性格：${character.personality}` : '',
     state.userProfile.displayName ? `用户昵称：${state.userProfile.displayName}` : '',
     state.userProfile.address ? `角色称呼用户：${character.addressUser || state.userProfile.address}` : '',
     state.userProfile.persona ? `用户人设：${state.userProfile.persona}` : '',
     state.userProfile.promptNote ? `用户评账偏好：${state.userProfile.promptNote}` : '',
+    budget.remaining === null ? '' : `预算事实：本月已支出 ${formatMoney(budget.monthlyExpense)}，本月预算剩余 ${formatMoney(budget.remaining)}，${budget.overLimit ? '已经超出总预算' : '尚未超出总预算'}。`,
+    categoryBudget.remaining === null ? '' : `分类预算事实：${entry.category} 已支出 ${formatMoney(categoryBudget.spent)}，剩余 ${formatMoney(categoryBudget.remaining)}。`,
     worldInfo.length ? `世界书命中条目：\n${worldInfo.map((entry) => `【${entry.bookName} / ${entry.title}】${entry.content}`).join('\n')}` : '',
     buildCharacterPrompt({
       characterName: character.name,
@@ -1018,6 +1243,17 @@ async function generateInsight() {
   }
   const expense = entries.filter((entry) => entry.kind === 'expense').reduce((sum, entry) => sum + entry.amount, 0);
   const income = entries.filter((entry) => entry.kind === 'income').reduce((sum, entry) => sum + entry.amount, 0);
+  const categoryStats = [...entries.reduce((map, entry) => {
+    if (entry.kind !== 'expense') return map;
+    const row = map.get(entry.category) || { category: entry.category, count: 0, amount: 0 };
+    row.count += 1;
+    row.amount += Number(entry.amount || 0);
+    map.set(entry.category, row);
+    return map;
+  }, new Map()).values()]
+    .sort((left, right) => right.amount - left.amount)
+    .map((row) => `${row.category}：${row.count} 次，${formatMoney(row.amount)}`)
+    .join('\n');
   const lines = entries.slice(0, 30).map((entry) => `${kinds[entry.kind] || entry.kind} / ${entry.category} / ${entry.title} / ${formatMoney(entry.amount)}`).join('\n');
   $('#insightOutput').textContent = '正在生成数据短评...';
   try {
@@ -1050,6 +1286,7 @@ async function generateInsight() {
               `评价语气：${state.userProfile.commentMode || '未设置'}`,
               `支出合计：${formatMoney(expense)}`,
               `收入合计：${formatMoney(income)}`,
+              categoryStats ? `分类次数与金额：\n${categoryStats}` : '',
               '账单：',
               lines,
             ].join('\n'),
@@ -1442,6 +1679,11 @@ function bindEvents() {
       amountBuffer: recordDraft.amountBuffer,
       note: recordDraft.note,
       characterName: recordDraft.characterName,
+      accountId: recordDraft.accountId,
+      fromAccountId: recordDraft.fromAccountId,
+      toAccountId: recordDraft.toAccountId,
+      feeAmount: recordDraft.feeAmount,
+      pendingItemId: recordDraft.pendingItemId,
     };
     renderRecord();
   });
@@ -1449,6 +1691,8 @@ function bindEvents() {
     const button = event.target.closest('[data-category]');
     if (!button) return;
     recordDraft.category = button.dataset.category;
+    recordDraft.categoryManuallySelected = true;
+    recordDraft.autoCategorySource = 'manual';
     renderRecord();
   });
   $('#keypad').addEventListener('click', (event) => {
@@ -1463,6 +1707,29 @@ function bindEvents() {
   });
   $('#noteInput').addEventListener('input', (event) => {
     recordDraft.note = event.target.value;
+    if (!recordDraft.categoryManuallySelected) {
+      const inferred = inferCategoryByKeywords(recordDraft.note, activeCategories(), recordDraft.kind);
+      if (inferred.category) {
+        recordDraft.category = inferred.category;
+        recordDraft.autoCategorySource = inferred.source;
+      }
+    }
+    renderRecord();
+  });
+  $('#accountSelect').addEventListener('change', (event) => {
+    recordDraft.accountId = event.target.value;
+  });
+  $('#fromAccountSelect').addEventListener('change', (event) => {
+    recordDraft.fromAccountId = event.target.value;
+  });
+  $('#toAccountSelect').addEventListener('change', (event) => {
+    recordDraft.toAccountId = event.target.value;
+  });
+  $('#feeAmountInput').addEventListener('input', (event) => {
+    recordDraft.feeAmount = event.target.value;
+  });
+  $('#pendingItemSelect').addEventListener('change', (event) => {
+    recordDraft.pendingItemId = event.target.value;
   });
   $('#recordCharacterSelect').addEventListener('change', (event) => {
     recordDraft.characterName = event.target.value;
@@ -1501,6 +1768,22 @@ function bindEvents() {
     const button = event.target.closest('[data-category-action]');
     if (!button) return;
     updateCategoryVisibility(button.dataset.categoryId, button.dataset.categoryAction);
+  });
+  $('#saveBudget').addEventListener('click', saveBudget);
+  $('#addCategoryBudget').addEventListener('click', addCategoryBudget);
+  $('#budgetList').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-category-budget]');
+    if (button) deleteCategoryBudget(button.dataset.deleteCategoryBudget);
+  });
+  $('#addAccount').addEventListener('click', addAccount);
+  $('#accountList').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-account]');
+    if (button) deleteAccount(button.dataset.deleteAccount);
+  });
+  $('#addPendingItem').addEventListener('click', addPendingItem);
+  $('#pendingItemList').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-pending]');
+    if (button) deletePendingItem(button.dataset.deletePending);
   });
   $('#characterImport').addEventListener('change', (event) => {
     void importCharacterCards(event.target.files);

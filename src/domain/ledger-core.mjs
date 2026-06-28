@@ -98,6 +98,7 @@ export function createDefaultLedgerState() {
       characterName: '',
       characterStyle: '',
       theme: 'pastel',
+      defaultPage: 'record',
     },
     userProfile: {
       displayName: '凡人歌',
@@ -111,6 +112,12 @@ export function createDefaultLedgerState() {
     worldBooks: [],
     chatMessages: [],
     categoryOverrides: [],
+    budgets: {
+      monthlyLimit: 0,
+      categoryLimits: [],
+    },
+    accounts: [],
+    pendingItems: [],
     insightPreset: '',
     lastInsight: null,
   };
