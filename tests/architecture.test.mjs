@@ -8,12 +8,18 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const componentCss = readFileSync(new URL('../src/styles/components.css', import.meta.url), 'utf8');
 const appJs = readFileSync(new URL('../src/app/main.mjs', import.meta.url), 'utf8');
+const androidManifest = readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
 
 assert(existsSync(new URL('../src/domain/ledger-core.mjs', import.meta.url)), 'domain core should live under src/domain');
-for (const domainFile of ['budget-core.mjs', 'account-core.mjs', 'pending-core.mjs', 'category-rules.mjs', 'duplicate-core.mjs']) {
+for (const domainFile of ['budget-core.mjs', 'account-core.mjs', 'pending-core.mjs', 'category-rules.mjs', 'duplicate-core.mjs', 'achievement-core.mjs']) {
   assert(existsSync(new URL(`../src/domain/${domainFile}`, import.meta.url)), `${domainFile} should live under src/domain`);
 }
 assert(existsSync(new URL('../src/app/main.mjs', import.meta.url)), 'app bootstrap should live under src/app');
+assert(existsSync(new URL('../android/app/src/main/java/com/fanrenge/todayledger/PaymentNotificationListener.java', import.meta.url)), 'apk should include a native payment notification listener');
+assert(existsSync(new URL('../android/app/src/main/java/com/fanrenge/todayledger/PaymentAccessibilityService.java', import.meta.url)), 'apk should include a native payment accessibility service');
+assert(existsSync(new URL('../android/app/src/main/java/com/fanrenge/todayledger/PaymentNotificationsPlugin.java', import.meta.url)), 'apk should include a Capacitor payment notification bridge');
+assert(existsSync(new URL('../android/app/src/main/java/com/fanrenge/todayledger/PaymentCaptureStore.java', import.meta.url)), 'payment capture services should share local capture settings');
+assert(existsSync(new URL('../android/app/src/main/res/xml/payment_accessibility_service.xml', import.meta.url)), 'apk should declare accessibility service config');
 for (const appFile of ['render-record.mjs', 'render-details.mjs', 'render-budget.mjs', 'render-accounts.mjs', 'render-pending.mjs', 'render-ai.mjs']) {
   assert(existsSync(new URL(`../src/app/${appFile}`, import.meta.url)), `${appFile} should live under src/app`);
 }
@@ -52,6 +58,15 @@ assert(appJs.includes('findDuplicateCandidates'), 'app should detect possible du
 assert(appJs.includes('inferCategoryByKeywords'), 'app should infer categories from note keywords');
 assert(appJs.includes('buildPendingSummary'), 'app should summarize pending items');
 assert(appJs.includes('applyEntryToAccounts'), 'app should update lightweight accounts');
+assert(appJs.includes('buildAchievements'), 'data page should use achievement-style statistics');
+assert(appJs.includes('setLedgerFont'), 'app should save selected font style');
+assert(appJs.includes('syncDetectedPayments'), 'app should sync native payment notifications into ledger entries');
+assert(appJs.includes('openPaymentAccessibilitySettings'), 'app should open Android accessibility settings');
+assert(appJs.includes('savePaymentCaptureSettings'), 'app should save user-controlled payment capture settings');
+assert(appJs.includes('loadInstalledApps'), 'app should load installed apps into the local whitelist picker');
+assert(androidManifest.includes('android.service.notification.NotificationListenerService'), 'android manifest should register notification listener service');
+assert(androidManifest.includes('android.accessibilityservice.AccessibilityService'), 'android manifest should register accessibility service');
+assert(androidManifest.includes('android.permission.QUERY_ALL_PACKAGES'), 'android manifest should allow the local installed-app picker to see installed apps');
 
 assert(!html.includes('timeBuckets'), 'detail page should not include bookkeeping time bucket UI');
 assert(!html.includes('time-panel'), 'detail page should not include time panel');
@@ -78,6 +93,15 @@ assert(html.includes('data-mine-panel="accounts"'), 'mine page should expose acc
 assert(html.includes('data-mine-panel="pending"'), 'mine page should expose pending item management');
 assert(html.includes('id="budgetMonthlyLimit"'), 'budget panel should edit monthly limit');
 assert(html.includes('id="accountList"'), 'account panel should list accounts');
+assert(html.includes('id="paymentCaptureStatus"'), 'account panel should show native payment capture status');
+assert(html.includes('id="openPaymentNotificationSettings"'), 'account panel should open Android notification listener settings');
+assert(html.includes('id="openPaymentAccessibilitySettings"'), 'account panel should open Android accessibility settings');
+assert(html.includes('id="paymentAppWhitelist"'), 'account panel should let users edit the local app whitelist');
+assert(html.includes('id="paymentKeywordList"'), 'account panel should let users edit local payment keywords');
+assert(html.includes('id="savePaymentCaptureSettings"'), 'account panel should save local capture settings');
+assert(html.includes('id="loadInstalledApps"'), 'account panel should load installed apps for whitelist selection');
+assert(html.includes('id="installedAppSearch"'), 'account panel should search installed apps');
+assert(html.includes('id="installedAppList"'), 'account panel should render installed app choices');
 assert(html.includes('id="pendingItemList"'), 'pending panel should list pending items');
 assert(html.includes('id="budgetHint"'), 'record page should show budget hints');
 assert(html.includes('id="accountSelect"'), 'record page should select payment account');
@@ -98,6 +122,9 @@ assert(html.includes('id="worldBookList"'), 'worldbook management should list im
 assert(html.includes('id="insightPresetImport"'), 'data page should allow importing AI summary presets');
 assert(html.includes('id="generateInsight"'), 'data page should allow generating AI spending summaries');
 assert(html.includes('id="insightOutput"'), 'data page should display AI spending summaries');
+assert(html.includes('id="achievementBoard"'), 'data page should show an achievement board');
+assert(html.includes('id="characterDataComments"'), 'data page should show one data comment per enabled character');
+assert(html.includes('id="fontSelect"'), 'theme sheet should include a font selector');
 assert(html.includes('id="userPersona"'), 'user profile should include editable persona text');
 assert(html.includes('id="userPromptNote"'), 'user profile should include editable prompt preferences');
 
@@ -123,5 +150,13 @@ assert(appJs.includes("renderAvatar({ avatar: message.avatar, characterName: mes
 assert(componentCss.includes('.bubble-avatar') && componentCss.includes('overflow: hidden;'), 'bubble avatars should clip imported image avatars');
 assert(appJs.includes('saveEvaluationPrompt'), 'app should save editable evaluation prompt text');
 assert(appJs.includes('addWorldBookEntry'), 'app should allow manually adding worldbook entries');
+assert(componentCss.includes('.achievement-board'), 'data page should style the achievement board');
+assert(componentCss.includes('.settings-panel[data-mine-panel-view="accounts"]'), 'account panel should have a distinct readable color accent');
+assert(componentCss.includes('.settings-panel[data-mine-panel-view="api"]'), 'api panel should have a distinct readable color accent');
+assert(componentCss.includes('.evaluation-toggle'), 'role evaluation comments should have a collapse control');
+assert(appJs.includes('const isCollapsed = messages.length > 0'), 'role evaluation collapse should hide the first comment too');
+assert(appJs.includes('const visibleMessages = isCollapsed ? [] : messages'), 'collapsed role comments should hide every character bubble');
+assert(componentCss.includes('font-rounded'), 'font selector should include a rounded font class');
+assert(appJs.includes('toggleEvaluationCollapse'), 'app should collapse and expand role comments');
 
 console.log('standalone ledger architecture ok');

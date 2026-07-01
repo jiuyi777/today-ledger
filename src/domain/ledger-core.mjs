@@ -98,6 +98,7 @@ export function createDefaultLedgerState() {
       characterName: '',
       characterStyle: '',
       theme: 'pastel',
+      fontFamily: 'system',
       defaultPage: 'record',
     },
     userProfile: {

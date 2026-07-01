@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: light;
   --phone-bg: #fffaf0;
   --paper: #fffefa;
@@ -264,8 +264,12 @@ h3 {
   align-items: start;
   border: 2px solid var(--ink);
   border-radius: 22px;
-  background: var(--yellow);
+  background: #fff8d7;
   padding: 10px;
+}
+
+.role-bubble.data-comment {
+  background: #fffaf0;
 }
 
 .chat-line.user {
@@ -290,6 +294,18 @@ h3 {
   font-size: 13px;
   overflow: hidden;
   flex-shrink: 0;
+}
+
+.evaluation-toggle {
+  justify-self: start;
+  min-height: 32px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 1000;
 }
 
 .role-bubble p,
@@ -925,24 +941,28 @@ textarea.text-field {
   font-weight: 1000;
 }
 
-.mine-menu button:nth-child(1) {
+.mine-menu button[data-mine-panel="user"],
+.mine-menu button[data-mine-panel="budget"] {
   background: var(--green);
 }
 
-.mine-menu button:nth-child(2) {
+.mine-menu button[data-mine-panel="contacts"],
+.mine-menu button[data-mine-panel="accounts"] {
   background: var(--blue);
 }
 
-.mine-menu button:nth-child(3) {
+.mine-menu button[data-mine-panel="worldbooks"],
+.mine-menu button[data-mine-panel="pending"] {
   background: var(--yellow);
 }
 
-.mine-menu button:nth-child(4) {
+.mine-menu button[data-mine-panel="categories"],
+.mine-menu button[data-mine-panel="api"] {
   background: var(--pink);
 }
 
-.mine-menu button:nth-child(5) {
-  background: var(--green);
+.mine-menu button[data-mine-panel="data"] {
+  background: color-mix(in srgb, var(--green) 54%, var(--blue));
 }
 
 .mine-menu button.active {
@@ -1276,6 +1296,235 @@ textarea.text-field {
 
 .settings-panel .field-label {
   margin-top: 0;
+}
+
+.settings-panel[data-mine-panel-view="budget"] {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--green) 42%, var(--paper)) 0 34%, var(--paper) 34%);
+}
+
+.settings-panel[data-mine-panel-view="accounts"] {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--blue) 46%, var(--paper)) 0 34%, var(--paper) 34%);
+}
+
+.settings-panel[data-mine-panel-view="pending"] {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--yellow) 46%, var(--paper)) 0 34%, var(--paper) 34%);
+}
+
+.settings-panel[data-mine-panel-view="api"] {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pink) 38%, var(--paper)) 0 34%, var(--paper) 34%);
+}
+
+.settings-panel[data-mine-panel-view="data"] {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--green) 34%, var(--paper)) 0 28%, color-mix(in srgb, var(--blue) 22%, var(--paper)) 28% 62%, var(--paper) 62%);
+}
+
+.account-flow-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payment-capture-card {
+  display: grid;
+  gap: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--blue) 56%, var(--paper));
+  padding: 12px;
+}
+
+.payment-capture-card .status-line {
+  min-height: auto;
+  margin-top: 6px;
+  text-align: left;
+}
+
+.payment-capture-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payment-capture-actions .save-button {
+  margin-top: 0;
+}
+
+.installed-app-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.installed-app-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  gap: 8px;
+}
+
+.installed-app-actions .save-button {
+  margin-top: 0;
+}
+
+.installed-app-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.installed-app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 8px;
+  align-items: center;
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 82%, var(--blue));
+  padding: 9px;
+}
+
+.installed-app-row h3,
+.installed-app-row p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.installed-app-row p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.installed-app-row button {
+  min-height: 34px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.account-flow-summary span,
+.achievement-card {
+  border: 2px solid var(--ink);
+  border-radius: 18px;
+  background: var(--paper);
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.account-flow-summary b {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.account-card {
+  background: linear-gradient(90deg, var(--row-color, var(--blue)) 0 48px, var(--paper) 48px);
+}
+
+.account-dot {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--row-color, var(--blue));
+}
+
+.achievement-section,
+.character-data-section {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.achievement-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.achievement-card {
+  min-height: 102px;
+  box-shadow: 2px 3px 0 rgba(17, 17, 17, 0.1);
+}
+
+.achievement-card span {
+  display: inline-grid;
+  place-items: center;
+  min-height: 24px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 1000;
+}
+
+.achievement-card h3 {
+  margin-top: 8px;
+}
+
+.achievement-card p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.achievement-card.unlocked span {
+  color: var(--ink);
+}
+
+.achievement-card.locked {
+  opacity: 0.62;
+}
+
+.achievement-card.tone-green {
+  background: color-mix(in srgb, var(--green) 62%, var(--paper));
+}
+
+.achievement-card.tone-blue {
+  background: color-mix(in srgb, var(--blue) 62%, var(--paper));
+}
+
+.achievement-card.tone-pink {
+  background: color-mix(in srgb, var(--pink) 44%, var(--paper));
+}
+
+.achievement-card.tone-yellow {
+  background: color-mix(in srgb, var(--yellow) 54%, var(--paper));
+}
+
+.character-data-comments {
+  display: grid;
+  gap: 8px;
+}
+
+.theme-font-select {
+  margin-top: 14px;
+}
+
+body.font-rounded {
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+
+body.font-serif {
+  font-family: SimSun, STSong, "Songti SC", "Microsoft YaHei", serif;
+}
+
+body.font-clean {
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+
+body.font-mono {
+  font-family: Consolas, "Microsoft YaHei", monospace;
 }
 
 .bottom-nav {

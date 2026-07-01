@@ -4,4 +4,5 @@
     <string name="title_activity_main">今日小账</string>
     <string name="package_name">com.fanrenge.todayledger</string>
     <string name="custom_url_scheme">com.fanrenge.todayledger</string>
+    <string name="payment_accessibility_description">读取用户允许的支付 App 页面文字，只在本机解析金额并生成今日小账账单。</string>
 </resources>

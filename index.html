@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -326,6 +326,36 @@
             <h2>账户</h2>
             <button class="panel-close" type="button" data-close-panel>收起</button>
           </div>
+          <section class="payment-capture-card">
+            <div>
+              <p class="date-line">Android 原生</p>
+              <h3>支付自动记账</h3>
+              <p id="paymentCaptureStatus" class="status-line">正在检查支付通知权限。</p>
+            </div>
+            <div class="payment-capture-actions">
+              <button id="openPaymentNotificationSettings" class="save-button small secondary" type="button">打开通知权限</button>
+              <button id="openPaymentAccessibilitySettings" class="save-button small secondary" type="button">打开无障碍权限</button>
+              <button id="syncDetectedPayments" class="save-button small" type="button">同步已捕获支付</button>
+            </div>
+            <label class="switch-line inline payment-auto-switch">
+              <input id="paymentAutoRecordEnabled" type="checkbox" checked />
+              <span>开启自动捕获。关闭后只保留手动记账。</span>
+            </label>
+            <label class="field-label">App 白名单
+              <textarea id="paymentAppWhitelist" class="text-field" rows="3" placeholder="每行一个包名，例如 com.tencent.mm"></textarea>
+            </label>
+            <section class="installed-app-picker">
+              <div class="installed-app-actions">
+                <input id="installedAppSearch" class="text-field" placeholder="搜索已安装 App 或包名" />
+                <button id="loadInstalledApps" class="save-button small secondary" type="button">读取已安装 App</button>
+              </div>
+              <div id="installedAppList" class="installed-app-list"></div>
+            </section>
+            <label class="field-label">支付关键词
+              <textarea id="paymentKeywordList" class="text-field" rows="4" placeholder="每行一个关键词，例如 支付成功"></textarea>
+            </label>
+            <button id="savePaymentCaptureSettings" class="save-button small" type="button">保存自动记账规则</button>
+          </section>
           <div class="category-editor-form">
             <input id="accountNameInput" class="text-field" placeholder="账户名，例如 支付宝" />
             <input id="accountBalanceInput" class="text-field" inputmode="decimal" placeholder="余额，例如 100" />
@@ -366,6 +396,24 @@
             <h2>数据</h2>
             <button class="panel-close" type="button" data-close-panel>收起</button>
           </div>
+          <section class="achievement-section">
+            <div class="section-title-row">
+              <div>
+                <p class="date-line">成就墙</p>
+                <h3>账本徽章</h3>
+              </div>
+            </div>
+            <div id="achievementBoard" class="achievement-board"></div>
+          </section>
+          <section class="character-data-section">
+            <div class="section-title-row">
+              <div>
+                <p class="date-line">角色围观</p>
+                <h3>每个人的账本短评</h3>
+              </div>
+            </div>
+            <div id="characterDataComments" class="character-data-comments"></div>
+          </section>
           <div class="insight-panel">
             <label class="field-label">AI 小总结范围
               <select id="insightScope" class="text-field">
@@ -425,6 +473,11 @@
               <small>黑紫像素终端、硬边状态栏。</small>
             </button>
           </div>
+          <label class="field-label theme-font-select">字体
+            <select id="fontSelect" class="text-field">
+              <option value="system">默认清爽</option>
+            </select>
+          </label>
         </div>
       </section>
     </main>

@@ -1,9 +1,9 @@
 export function createDefaultAccounts() {
   return [
-    { id: 'wechat', name: '微信', balance: 0 },
-    { id: 'bank', name: '银行卡', balance: 0 },
-    { id: 'cash', name: '现金', balance: 0 },
-    { id: 'other', name: '其他', balance: 0 },
+    { id: 'wechat', name: '微信', balance: 0, color: '#DCEECD' },
+    { id: 'bank', name: '银行卡', balance: 0, color: '#D9E8F6' },
+    { id: 'cash', name: '现金', balance: 0, color: '#F4EDBD' },
+    { id: 'other', name: '其他', balance: 0, color: '#E9C4D5' },
   ];
 }
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
   buildCalendarMonth,
   buildCategoryCatalog,
   buildCategoryBreakdown,
@@ -18,7 +18,8 @@
   removeBuiltInEvaluations,
   selectWorldBookEntries,
 } from '../domain/ledger-core.mjs';
-import { applyEntryToAccounts, buildFeeEntryForTransfer, createDefaultAccounts } from '../domain/account-core.mjs';
+import { applyEntryToAccounts, buildFeeEntryForTransfer, createDefaultAccounts, summarizeAccountFlow } from '../domain/account-core.mjs';
+import { buildAchievements, buildCharacterAchievementComments } from '../domain/achievement-core.mjs';
 import { buildBudgetSummary, getCategoryBudgetStatus } from '../domain/budget-core.mjs';
 import { inferCategoryByKeywords, normalizeKeywordList } from '../domain/category-rules.mjs';
 import { findDuplicateCandidates } from '../domain/duplicate-core.mjs';
@@ -34,6 +35,14 @@ const themeOptions = [
   { id: 'alcheris-pixel', name: '阿尔切利斯像素' },
 ];
 
+const fontOptions = [
+  { id: 'system', name: '默认清爽' },
+  { id: 'rounded', name: '圆润手账' },
+  { id: 'serif', name: '书卷宋体' },
+  { id: 'clean', name: '利落黑体' },
+  { id: 'mono', name: '数字等宽' },
+];
+
 const allThemeClasses = [
   'theme-pastel',
   'theme-gothic',
@@ -42,6 +51,9 @@ const allThemeClasses = [
   'theme-status-terminal',
   'theme-alcheris-pixel',
 ];
+const allFontClasses = fontOptions
+  .filter((item) => item.id !== 'system')
+  .map((item) => `font-${item.id}`);
 const scopeLabels = {
   day: '当天',
   week: '本周',
@@ -56,6 +68,9 @@ const viewLabels = {
   bar: '条形',
 };
 
+const defaultPaymentAppWhitelist = ['com.tencent.mm', 'com.eg.android.AlipayGphone'];
+const defaultPaymentKeywords = ['支付成功', '付款成功', '已支付', '支付', '付款', '扣款', '交易成功', '收款', '零钱', '银行卡', '¥', '￥', '元'];
+
 let state = loadState();
 let activePage = state.settings.defaultPage || 'record';
 let activeMinePanel = '';
@@ -66,6 +81,11 @@ let selectedDate = Date.now();
 let calendarCursor = selectedDate;
 let recordDraft = createDraft('expense', activeCategories());
 let themeSheetOpen = false;
+let expandedEvaluationIds = new Set();
+let paymentSyncInFlight = false;
+let paymentSettingsLoaded = false;
+let installedApps = [];
+let installedAppQuery = '';
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -217,11 +237,15 @@ function setPage(pageName) {
 }
 
 function updateTheme() {
-  document.body.classList.remove(...allThemeClasses, 'dark');
+  document.body.classList.remove(...allThemeClasses, ...allFontClasses, 'dark');
   const theme = themeOptions.some((item) => item.id === state.settings.theme)
     ? state.settings.theme
     : 'pastel';
   document.body.classList.add(`theme-${theme}`);
+  const font = fontOptions.some((item) => item.id === state.settings.fontFamily)
+    ? state.settings.fontFamily
+    : 'system';
+  if (font !== 'system') document.body.classList.add(`font-${font}`);
 }
 
 function renderShell() {
@@ -252,12 +276,27 @@ function renderThemeSheet() {
   $$('[data-theme-choice]').forEach((button) => {
     button.classList.toggle('active', button.dataset.themeChoice === currentTheme);
   });
+  if ($('#fontSelect')) {
+    $('#fontSelect').innerHTML = fontOptions
+      .map((font) => `<option value="${escapeHtml(font.id)}">${escapeHtml(font.name)}</option>`)
+      .join('');
+    $('#fontSelect').value = fontOptions.some((item) => item.id === state.settings.fontFamily)
+      ? state.settings.fontFamily
+      : 'system';
+  }
 }
 
 function setLedgerTheme(themeId) {
   if (!themeOptions.some((theme) => theme.id === themeId)) return;
   state.settings = { ...state.settings, theme: themeId };
   themeSheetOpen = false;
+  saveState();
+  render();
+}
+
+function setLedgerFont(fontId) {
+  if (!fontOptions.some((font) => font.id === fontId)) return;
+  state.settings = { ...state.settings, fontFamily: fontId };
   saveState();
   render();
 }
@@ -280,6 +319,8 @@ function renderEvaluate() {
 
 function renderEvaluationEntry(entry) {
   const messages = Array.isArray(entry.evaluations) ? entry.evaluations : [];
+  const isCollapsed = messages.length > 0 && !expandedEvaluationIds.has(entry.id);
+  const visibleMessages = isCollapsed ? [] : messages;
   const status = entry.evaluationStatus || (messages.length ? '' : 'no-character');
   const statusText = {
     pending: '已保存，正在让角色自动评账。',
@@ -291,7 +332,7 @@ function renderEvaluationEntry(entry) {
     <article class="ledger-thread">
       ${renderEntry(entry)}
       <div class="bubble-stack">
-        ${messages.length ? messages.map((message) => `
+        ${messages.length ? visibleMessages.map((message) => `
           <div class="role-bubble">
             ${renderAvatar({ avatar: message.avatar, characterName: message.characterName }, 'bubble-avatar')}
             <div>
@@ -300,9 +341,23 @@ function renderEvaluationEntry(entry) {
             </div>
           </div>
         `).join('') : `<p class="empty">${escapeHtml(statusText)}</p>`}
+        ${messages.length > 0 ? `
+          <button class="evaluation-toggle" type="button" data-toggle-evaluation="${escapeHtml(entry.id)}">
+            ${isCollapsed ? `展开 ${messages.length} 条角色短评` : '收起角色短评'}
+          </button>
+        ` : ''}
       </div>
     </article>
   `;
+}
+
+function toggleEvaluationCollapse(entryId) {
+  if (expandedEvaluationIds.has(entryId)) {
+    expandedEvaluationIds.delete(entryId);
+  } else {
+    expandedEvaluationIds.add(entryId);
+  }
+  renderEvaluate();
 }
 
 function renderChatMessage(message) {
@@ -546,6 +601,8 @@ function renderSettings() {
   renderBudgetEditor();
   renderAccountEditor();
   renderPendingEditor();
+  renderDataPanel();
+  void renderPaymentCaptureStatus();
 }
 
 function renderApiModelOptions() {
@@ -765,15 +822,30 @@ function deleteCategoryBudget(category) {
 
 function renderAccountEditor() {
   if (!state.accounts.length) state.accounts = createDefaultAccounts();
-  $('#accountList').innerHTML = state.accounts.map((account) => `
-    <article class="category-editor-row">
+  const flow = summarizeAccountFlow(state.entries);
+  const totalBalance = state.accounts.reduce((sum, account) => sum + Number(account.balance || 0), 0);
+  const accountRows = state.accounts.map((account, index) => {
+    const color = account.color || ['#DCEECD', '#D9E8F6', '#F4EDBD', '#E9C4D5'][index % 4];
+    return `
+    <article class="category-editor-row account-card" style="--row-color:${escapeHtml(color)}">
+      <div class="account-dot" aria-hidden="true"></div>
       <div>
         <h3>${escapeHtml(account.name)}</h3>
         <p>余额 ${formatMoney(account.balance || 0)}</p>
       </div>
       <button type="button" data-delete-account="${escapeHtml(account.id)}">删除</button>
     </article>
-  `).join('');
+  `;
+  }).join('');
+  $('#accountList').innerHTML = `
+    <section class="account-flow-summary">
+      <span>账户合计 <b>${formatMoney(totalBalance)}</b></span>
+      <span>支出 <b>${formatMoney(flow.expense)}</b></span>
+      <span>收入 <b>${formatMoney(flow.income)}</b></span>
+      <span>转账 <b>${formatMoney(flow.transfer)}</b></span>
+    </section>
+    ${accountRows}
+  `;
 }
 
 function addAccount() {
@@ -785,13 +857,46 @@ function addAccount() {
   }
   state.accounts = [
     ...state.accounts,
-    { id: `account-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, balance },
+    {
+      id: `account-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      balance,
+      color: ['#DCEECD', '#D9E8F6', '#F4EDBD', '#E9C4D5'][state.accounts.length % 4],
+    },
   ];
   $('#accountNameInput').value = '';
   $('#accountBalanceInput').value = '';
   $('#accountStatus').textContent = `已添加 ${name}`;
   saveState();
   render();
+}
+
+function renderDataPanel() {
+  const achievements = buildAchievements(state.entries, {
+    budgets: state.budgets,
+    pendingItems: state.pendingItems,
+    now: Date.now(),
+  });
+  $('#achievementBoard').innerHTML = achievements.map((achievement) => `
+    <article class="achievement-card ${achievement.unlocked ? 'unlocked' : 'locked'} tone-${escapeHtml(achievement.tone)}">
+      <span>${achievement.unlocked ? '已点亮' : '未点亮'}</span>
+      <h3>${escapeHtml(achievement.title)}</h3>
+      <p>${escapeHtml(achievement.detail)}</p>
+    </article>
+  `).join('');
+
+  const comments = buildCharacterAchievementComments(enabledCharacters(), achievements);
+  $('#characterDataComments').innerHTML = comments.length
+    ? comments.map((message) => `
+      <div class="role-bubble data-comment">
+        ${renderAvatar({ characterName: message.characterName }, 'bubble-avatar')}
+        <div>
+          <b>${escapeHtml(message.characterName)}</b>
+          <p>${escapeHtml(message.content)}</p>
+        </div>
+      </div>
+    `).join('')
+    : '<p class="empty slim">导入并启用角色后，每个人都会在这里评价你的账本成就。</p>';
 }
 
 function deleteAccount(accountId) {
@@ -850,6 +955,262 @@ function deletePendingItem(itemId) {
   state.pendingItems = state.pendingItems.filter((item) => item.id !== itemId);
   saveState();
   render();
+}
+
+function getPaymentNotificationsPlugin() {
+  return globalThis.Capacitor?.Plugins?.PaymentNotifications || null;
+}
+
+function splitLines(value) {
+  return String(value || '')
+    .split(/\r?\n|,|，/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function currentWhitelist() {
+  return splitLines($('#paymentAppWhitelist')?.value || '').length
+    ? splitLines($('#paymentAppWhitelist').value)
+    : defaultPaymentAppWhitelist;
+}
+
+function setWhitelist(packages) {
+  $('#paymentAppWhitelist').value = [...new Set(packages.map((item) => String(item || '').trim()).filter(Boolean))].join('\n');
+}
+
+function fillPaymentCaptureSettings(settings = {}) {
+  const whitelist = Array.isArray(settings.appWhitelist) && settings.appWhitelist.length
+    ? settings.appWhitelist
+    : defaultPaymentAppWhitelist;
+  const keywords = Array.isArray(settings.paymentKeywords) && settings.paymentKeywords.length
+    ? settings.paymentKeywords
+    : defaultPaymentKeywords;
+  $('#paymentAppWhitelist').value = whitelist.join('\n');
+  $('#paymentKeywordList').value = keywords.join('\n');
+  $('#paymentAutoRecordEnabled').checked = settings.autoRecordEnabled !== false;
+  renderInstalledAppPicker();
+}
+
+function renderInstalledAppPicker() {
+  const list = $('#installedAppList');
+  if (!list) return;
+  if (!installedApps.length) {
+    list.innerHTML = '<p class="empty slim">点“读取已安装 App”，再搜索并加入白名单。</p>';
+    return;
+  }
+  const query = installedAppQuery.trim().toLowerCase();
+  const whitelist = new Set(currentWhitelist());
+  const visibleApps = installedApps
+    .filter((app) => {
+      if (!query) return true;
+      return String(app.label || '').toLowerCase().includes(query)
+        || String(app.packageName || '').toLowerCase().includes(query);
+    })
+    .slice(0, 80);
+  list.innerHTML = visibleApps.length
+    ? visibleApps.map((app) => {
+      const added = whitelist.has(app.packageName);
+      return `
+        <article class="installed-app-row">
+          <div>
+            <h3>${escapeHtml(app.label || app.packageName)}</h3>
+            <p>${escapeHtml(app.packageName)}${app.system ? ' · 系统' : ''}</p>
+          </div>
+          <button type="button" data-add-installed-app="${escapeHtml(app.packageName)}">${added ? '已加入' : '加入'}</button>
+        </article>
+      `;
+    }).join('')
+    : '<p class="empty slim">没有匹配的 App。</p>';
+}
+
+async function loadInstalledApps() {
+  const plugin = getPaymentNotificationsPlugin();
+  if (!plugin) {
+    $('#paymentCaptureStatus').textContent = '浏览器预览不能读取手机已安装 App；请在 APK 里使用这个选择器。';
+    return;
+  }
+  $('#paymentCaptureStatus').textContent = '正在读取已安装 App...';
+  try {
+    const result = await plugin.listInstalledApps();
+    installedApps = Array.isArray(result.apps) ? result.apps : [];
+    renderInstalledAppPicker();
+    $('#paymentCaptureStatus').textContent = `已读取 ${installedApps.length} 个 App，搜索后可加入白名单。`;
+  } catch (error) {
+    $('#paymentCaptureStatus').textContent = `读取已安装 App 失败：${error instanceof Error ? error.message : '未知错误'}`;
+  }
+}
+
+function addInstalledAppToWhitelist(packageName) {
+  const next = [...currentWhitelist(), packageName];
+  setWhitelist(next);
+  renderInstalledAppPicker();
+}
+
+async function renderPaymentCaptureStatus() {
+  const status = $('#paymentCaptureStatus');
+  if (!status) return;
+  const plugin = getPaymentNotificationsPlugin();
+  if (!plugin) {
+    if (!paymentSettingsLoaded) {
+      fillPaymentCaptureSettings({
+        appWhitelist: defaultPaymentAppWhitelist,
+        paymentKeywords: defaultPaymentKeywords,
+        autoRecordEnabled: true,
+      });
+      paymentSettingsLoaded = true;
+    }
+    status.textContent = '浏览器预览不能读取支付页面；APK 里开启通知或无障碍权限后才会自动捕获。';
+    return;
+  }
+  try {
+    const [permissionResult, settings] = await Promise.all([
+      plugin.isEnabled(),
+      plugin.getCaptureSettings(),
+    ]);
+    if (!paymentSettingsLoaded) {
+      fillPaymentCaptureSettings(settings);
+      paymentSettingsLoaded = true;
+    }
+    const notificationText = permissionResult.enabled ? '通知已开' : '通知未开';
+    const accessibilityText = permissionResult.accessibilityEnabled ? '无障碍已开' : '无障碍未开';
+    const autoText = settings.autoRecordEnabled === false ? '自动捕获已关' : '自动捕获已开';
+    status.textContent = `${notificationText} · ${accessibilityText} · ${autoText}`;
+  } catch (error) {
+    status.textContent = '通知权限状态读取失败，请在 Android 系统设置里检查。';
+  }
+}
+
+async function openPaymentNotificationSettings() {
+  const plugin = getPaymentNotificationsPlugin();
+  if (!plugin) {
+    $('#paymentCaptureStatus').textContent = '当前是浏览器预览，无法打开 Android 通知监听设置。';
+    return;
+  }
+  await plugin.openSettings();
+  $('#paymentCaptureStatus').textContent = '已打开系统通知监听设置，授权后回到今日小账同步。';
+}
+
+async function openPaymentAccessibilitySettings() {
+  const plugin = getPaymentNotificationsPlugin();
+  if (!plugin) {
+    $('#paymentCaptureStatus').textContent = '当前是浏览器预览，无法打开 Android 无障碍设置。';
+    return;
+  }
+  await plugin.openAccessibilitySettings();
+  $('#paymentCaptureStatus').textContent = '已打开系统无障碍设置。找到今日小账并开启后，支付成功页会进入本机待同步队列。';
+}
+
+async function savePaymentCaptureSettings() {
+  const plugin = getPaymentNotificationsPlugin();
+  const nextSettings = {
+    appWhitelist: splitLines($('#paymentAppWhitelist').value),
+    paymentKeywords: splitLines($('#paymentKeywordList').value),
+    autoRecordEnabled: $('#paymentAutoRecordEnabled').checked,
+  };
+  if (!nextSettings.appWhitelist.length) nextSettings.appWhitelist = defaultPaymentAppWhitelist;
+  if (!nextSettings.paymentKeywords.length) nextSettings.paymentKeywords = defaultPaymentKeywords;
+  fillPaymentCaptureSettings(nextSettings);
+  if (!plugin) {
+    $('#paymentCaptureStatus').textContent = '浏览器预览已更新显示规则；APK 里会保存到本机原生设置。';
+    return;
+  }
+  try {
+    const saved = await plugin.saveCaptureSettings(nextSettings);
+    fillPaymentCaptureSettings(saved);
+    $('#paymentCaptureStatus').textContent = '自动记账规则已保存到本机。';
+  } catch (error) {
+    $('#paymentCaptureStatus').textContent = `规则保存失败：${error instanceof Error ? error.message : '未知错误'}`;
+  }
+}
+
+async function autoSyncDetectedPayments() {
+  const plugin = getPaymentNotificationsPlugin();
+  if (!plugin || paymentSyncInFlight) return;
+  try {
+    const settings = await plugin.getCaptureSettings();
+    if (settings.autoRecordEnabled === false) return;
+    await syncDetectedPayments({ silent: true });
+  } catch {
+    // Native capture is optional; explicit sync button will surface errors.
+  }
+}
+
+function paymentAccountId(record = {}) {
+  const accounts = state.accounts.length ? state.accounts : createDefaultAccounts();
+  const packageName = String(record.packageName || '');
+  const preferred = packageName.includes('tencent.mm')
+    ? accounts.find((account) => account.id === 'wechat' || account.name.includes('微信'))
+    : accounts.find((account) => account.name.includes('支付宝')) || accounts.find((account) => account.id === 'other');
+  return preferred?.id || accounts[0]?.id || '';
+}
+
+function buildPaymentEntry(record = {}) {
+  const text = [record.title, record.text].filter(Boolean).join(' · ');
+  const inferred = inferCategoryByKeywords(text, activeCategories(), 'expense');
+  const category = inferred.category || activeCategories().find((item) => item.kind === 'expense')?.name || '其他支出';
+  return {
+    id: `payment-${record.id || makeId()}`,
+    kind: 'expense',
+    category,
+    title: text.slice(0, 40) || category,
+    amount: Number(record.amount || 0),
+    note: text,
+    createdAt: Number(record.postedAt || Date.now()),
+    accountId: paymentAccountId(record),
+    fromAccountId: '',
+    toAccountId: '',
+    feeAmount: 0,
+    pendingItemId: '',
+    autoCategorySource: inferred.source ? `payment-notification:${inferred.source}` : 'payment-notification',
+    sourcePaymentId: String(record.id || ''),
+  };
+}
+
+async function syncDetectedPayments(options = {}) {
+  const plugin = getPaymentNotificationsPlugin();
+  if (!plugin) {
+    $('#paymentCaptureStatus').textContent = '当前是浏览器预览，无法读取系统支付通知。APK 里授权后才能同步。';
+    return;
+  }
+  if (paymentSyncInFlight) return;
+  paymentSyncInFlight = true;
+  try {
+    const result = await plugin.getDetectedPayments();
+    const records = Array.isArray(result.records) ? result.records : [];
+    const existing = new Set(state.entries.map((entry) => String(entry.sourcePaymentId || entry.id)));
+    const nextEntries = records
+      .map(buildPaymentEntry)
+      .filter((entry) => entry.amount > 0 && !existing.has(entry.sourcePaymentId));
+    if (!nextEntries.length) {
+      if (!options.silent) $('#paymentCaptureStatus').textContent = '没有新的支付记录可同步。';
+      return;
+    }
+    const evaluators = enabledCharacters();
+    const canEvaluate = Boolean(state.settings.apiBaseUrl.trim() && state.settings.apiModel.trim());
+    const stampedEntries = nextEntries.map((entry) => ({
+      ...entry,
+      evaluations: [],
+      evaluationStatus: evaluators.length ? (canEvaluate ? 'pending' : 'api-missing') : 'no-character',
+    }));
+    state.entries = [...stampedEntries, ...state.entries];
+    state.accounts = stampedEntries.reduce(
+      (accounts, entry) => applyEntryToAccounts(accounts, entry),
+      state.accounts.length ? state.accounts : createDefaultAccounts(),
+    );
+    await plugin.clearDetectedPayments();
+    saveState();
+    $('#paymentCaptureStatus').textContent = `已自动同步 ${stampedEntries.length} 笔支付记录。`;
+    render();
+    if (evaluators.length && canEvaluate) {
+      stampedEntries.forEach((entry) => {
+        void updateCharacterEvaluations(entry, evaluators);
+      });
+    }
+  } catch (error) {
+    if (!options.silent) $('#paymentCaptureStatus').textContent = `同步失败：${error instanceof Error ? error.message : '未知错误'}`;
+  } finally {
+    paymentSyncInFlight = false;
+  }
 }
 
 function upsertCategoryOverride(nextOverride) {
@@ -1741,6 +2102,11 @@ function bindEvents() {
     if (button) deleteEntry(button.dataset.delete);
   });
   $('#evaluationFeed').addEventListener('click', (event) => {
+    const toggleButton = event.target.closest('[data-toggle-evaluation]');
+    if (toggleButton) {
+      toggleEvaluationCollapse(toggleButton.dataset.toggleEvaluation);
+      return;
+    }
     const button = event.target.closest('[data-delete]');
     if (button) deleteEntry(button.dataset.delete);
   });
@@ -1776,6 +2142,30 @@ function bindEvents() {
     if (button) deleteCategoryBudget(button.dataset.deleteCategoryBudget);
   });
   $('#addAccount').addEventListener('click', addAccount);
+  $('#openPaymentNotificationSettings').addEventListener('click', () => {
+    void openPaymentNotificationSettings();
+  });
+  $('#openPaymentAccessibilitySettings').addEventListener('click', () => {
+    void openPaymentAccessibilitySettings();
+  });
+  $('#savePaymentCaptureSettings').addEventListener('click', () => {
+    void savePaymentCaptureSettings();
+  });
+  $('#loadInstalledApps').addEventListener('click', () => {
+    void loadInstalledApps();
+  });
+  $('#installedAppSearch').addEventListener('input', (event) => {
+    installedAppQuery = event.target.value;
+    renderInstalledAppPicker();
+  });
+  $('#installedAppList').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-add-installed-app]');
+    if (!button) return;
+    addInstalledAppToWhitelist(button.dataset.addInstalledApp);
+  });
+  $('#syncDetectedPayments').addEventListener('click', () => {
+    void syncDetectedPayments();
+  });
   $('#accountList').addEventListener('click', (event) => {
     const button = event.target.closest('[data-delete-account]');
     if (button) deleteAccount(button.dataset.deleteAccount);
@@ -1875,6 +2265,15 @@ function bindEvents() {
     const button = event.target.closest('[data-theme-choice]');
     if (button) setLedgerTheme(button.dataset.themeChoice);
   });
+  $('#fontSelect').addEventListener('change', (event) => {
+    setLedgerFont(event.target.value);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void autoSyncDetectedPayments();
+  });
+  window.addEventListener('focus', () => {
+    void autoSyncDetectedPayments();
+  });
 }
 
 function render() {
@@ -1890,3 +2289,4 @@ function render() {
 
 bindEvents();
 render();
+void autoSyncDetectedPayments();
